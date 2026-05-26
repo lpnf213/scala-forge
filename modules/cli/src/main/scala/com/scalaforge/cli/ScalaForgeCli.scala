@@ -1,6 +1,32 @@
 package com.scalaforge.cli
 
+import java.nio.file.{Files, Paths}
+
 object ScalaForgeCli {
+  private object ExitCode {
+    val Success = 0
+    val Usage = 2
+    val Validation = 3
+  }
+
+  private val SupportedTemplates = Set("cli-app")
+  private val BooleanOptions = Set(
+    "docker",
+    "docker-compose",
+    "k8s",
+    "helm",
+    "github-actions",
+    "observability",
+    "strict",
+    "overwrite",
+    "dry-run",
+    "docs"
+  )
+  private val ValueOptions = Set("scala", "spark", "iceberg", "build", "test", "config", "json", "logging")
+  private val AllNewOptions = BooleanOptions ++ ValueOptions
+  private val CliAppUnsupportedOptions =
+    Set("spark", "iceberg", "docker", "docker-compose", "k8s", "helm", "github-actions", "observability")
+  private val AllowedUpgradeOptions = Set("scala", "spark", "iceberg", "dry-run")
 
   sealed trait Command
   final case class NewCommand(
@@ -21,7 +47,7 @@ object ScalaForgeCli {
       case Left(error) =>
         Console.err.println(s"Error: $error")
         printUsage()
-        sys.exit(1)
+        sys.exit(ExitCode.Usage)
     }
   }
 
@@ -31,20 +57,14 @@ object ScalaForgeCli {
         runNew(template, projectName, options, flags)
 
       case DoctorCommand(projectPath) =>
-        println(s"[doctor] target=$projectPath")
-        println("Project validation is not implemented yet.")
-        0
+        runDoctor(projectPath)
 
       case UpgradeCommand(projectPath, options, flags) =>
-        println(s"[upgrade] target=$projectPath")
-        if (options.nonEmpty) println(s"[upgrade] options=${formatOptions(options)}")
-        if (flags.nonEmpty) println(s"[upgrade] flags=${flags.toList.sorted.mkString(",")}")
-        println("Upgrade assistant is not implemented yet.")
-        0
+        runUpgrade(projectPath, options, flags)
 
       case HelpCommand =>
         printUsage()
-        0
+        ExitCode.Success
     }
 
   private def runNew(
@@ -53,12 +73,16 @@ object ScalaForgeCli {
       options: Map[String, String],
       flags: Set[String]
   ): Int = {
-    val dryRun = flagEnabled("dry-run", options, flags)
-    val overwrite = flagEnabled("overwrite", options, flags)
-    val scalaVersion = options.getOrElse("scala", "2.13.14")
+    val templateId = template.toLowerCase
+    validateNewRequest(templateId, options, flags) match {
+      case Left(errors) =>
+        printValidationErrors(errors)
+        ExitCode.Validation
+      case Right(_) =>
+        val dryRun = flagEnabled("dry-run", options, flags)
+        val overwrite = flagEnabled("overwrite", options, flags)
+        val scalaVersion = options.getOrElse("scala", "2.13.14")
 
-    template.toLowerCase match {
-      case "cli-app" =>
         CliAppScaffolder.scaffold(
           projectName = projectName,
           scalaVersion = scalaVersion,
@@ -71,17 +95,38 @@ object ScalaForgeCli {
             println(s"Project root: ${result.projectRoot}")
             println("Files:")
             result.plannedFiles.foreach(path => println(s"  - $path"))
-            0
+            ExitCode.Success
           case Left(error) =>
             Console.err.println(s"Error: $error")
-            1
+            ExitCode.Validation
         }
+    }
+  }
 
-      case other =>
-        Console.err.println(
-          s"Error: template '$other' is not implemented yet. Currently supported: cli-app"
-        )
-        1
+  private def runDoctor(projectPath: String): Int = {
+    val path = Paths.get(projectPath)
+    if (!Files.exists(path)) {
+      printValidationErrors(List(s"Project path does not exist: ${path.toAbsolutePath.normalize()}"))
+      ExitCode.Validation
+    } else {
+      println(s"[doctor] target=$projectPath")
+      println("Project validation is not implemented yet.")
+      ExitCode.Success
+    }
+  }
+
+  private def runUpgrade(projectPath: String, options: Map[String, String], flags: Set[String]): Int = {
+    val path = Paths.get(projectPath)
+    val errors = validateUpgradeRequest(path, options, flags)
+    if (errors.nonEmpty) {
+      printValidationErrors(errors)
+      ExitCode.Validation
+    } else {
+      println(s"[upgrade] target=$projectPath")
+      if (options.nonEmpty) println(s"[upgrade] options=${formatOptions(options)}")
+      if (flags.nonEmpty) println(s"[upgrade] flags=${flags.toList.sorted.mkString(",")}")
+      println("Upgrade assistant is not implemented yet.")
+      ExitCode.Success
     }
   }
 
@@ -153,6 +198,72 @@ object ScalaForgeCli {
     flags.contains(name) || options
       .get(name)
       .exists(v => Set("1", "true", "yes", "on").contains(v.trim.toLowerCase))
+
+  private def validateNewRequest(
+      template: String,
+      options: Map[String, String],
+      flags: Set[String]
+  ): Either[List[String], Unit] = {
+    val unknownOptionErrors = (options.keySet -- AllNewOptions).toList.sorted
+      .map(key => s"Unknown option: --$key")
+    val unknownFlagErrors = (flags -- AllNewOptions).toList.sorted
+      .map(key => s"Unknown flag: --$key")
+    val booleanValueErrors = options.toList.collect {
+      case (key, value) if BooleanOptions.contains(key) && !isBooleanString(value) =>
+        s"Option --$key must be boolean (true/false/1/0/yes/no/on/off), got '$value'"
+    }
+    val templateErrors =
+      if (SupportedTemplates.contains(template)) Nil
+      else List(s"Unsupported template '$template'. Supported templates: ${SupportedTemplates.toList.sorted.mkString(", ")}")
+
+    val relationErrors = List(
+      Option.when(flagEnabled("helm", options, flags) && !flagEnabled("k8s", options, flags))(
+        "--helm requires --k8s"
+      ),
+      Option.when(flagEnabled("docker-compose", options, flags) && !flagEnabled("docker", options, flags))(
+        "--docker-compose requires --docker"
+      )
+    ).flatten
+
+    val templateSpecificErrors =
+      if (template == "cli-app") {
+        val disallowedKeys = (options.keySet ++ flags).intersect(CliAppUnsupportedOptions).toList.sorted
+        disallowedKeys.map(key => s"Template 'cli-app' does not support --$key")
+      } else Nil
+
+    val errors = unknownOptionErrors ++ unknownFlagErrors ++ booleanValueErrors ++ templateErrors ++ relationErrors ++ templateSpecificErrors
+    if (errors.nonEmpty) Left(errors) else Right(())
+  }
+
+  private def validateUpgradeRequest(
+      projectPath: java.nio.file.Path,
+      options: Map[String, String],
+      flags: Set[String]
+  ): List[String] = {
+    val pathErrors =
+      if (Files.exists(projectPath)) Nil
+      else List(s"Project path does not exist: ${projectPath.toAbsolutePath.normalize()}")
+
+    val allowedFlags = Set("dry-run")
+    val unknownOptionErrors = (options.keySet -- AllowedUpgradeOptions).toList.sorted
+      .map(key => s"Unknown option for upgrade: --$key")
+    val unknownFlagErrors = (flags -- allowedFlags).toList.sorted
+      .map(key => s"Unknown flag for upgrade: --$key")
+    val booleanValueErrors = options.toList.collect {
+      case ("dry-run", value) if !isBooleanString(value) =>
+        s"Option --dry-run must be boolean (true/false/1/0/yes/no/on/off), got '$value'"
+    }
+
+    pathErrors ++ unknownOptionErrors ++ unknownFlagErrors ++ booleanValueErrors
+  }
+
+  private def isBooleanString(value: String): Boolean =
+    Set("1", "0", "true", "false", "yes", "no", "on", "off").contains(value.trim.toLowerCase)
+
+  private def printValidationErrors(errors: List[String]): Unit = {
+    Console.err.println("Validation errors:")
+    errors.foreach(error => Console.err.println(s"  - $error"))
+  }
 
   private def printUsage(): Unit = {
     val usage =

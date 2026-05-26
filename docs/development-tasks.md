@@ -19,48 +19,27 @@ This document translates the Scala Forge product specification into an executabl
 5. Generated templates runnable locally.
 6. README + docs updated.
 
-## 3.1 Current Status (as of 2026-05-26)
-### Milestone Snapshot
-1. `M0` Project bootstrap and baseline tooling: `In Progress`.
-2. `M1` CLI Core + Template Engine + build generation: `In Progress`.
-3. `M2` to `M5`: `Not Started`.
-
-### Completed
-1. CLI command surface exists for `new`, `doctor`, `upgrade`.
-2. CLI help and basic option parsing are implemented.
-3. `build.sbt`, `project/build.properties`, and `project/plugins.sbt` are in place.
-4. Docker packaging baseline exists with multi-stage `Dockerfile` + `docker-compose.yml`.
-5. Documentation baseline exists:
-   - `docs/development-tasks.md`
-   - `docs/class-diagram.md`
-   - `docs/sbt-guide.md`
-   - `docs/run-with-docker.md`
-6. `new cli-app` now generates a real scaffold with `--dry-run` and `--overwrite` support.
-
-### In Progress
-1. Harden CLI validation (`--overwrite`, stricter constraints, richer diagnostics).
-2. Expand template generation beyond `cli-app` and add deterministic render tests.
-3. Docker run verification in this environment.
-
-### Blocked / External Dependencies
-1. Local `sbt` is not installed in the current environment.
-2. Docker build validation is blocked by network/DNS access to Docker Hub (`registry-1.docker.io` resolution failure during image pull).
-
 ## 4. Task Backlog by Epic
 
 ### Epic 1 - CLI Core (Status: In Progress)
-1. Implement command surface: `new`, `doctor`, `upgrade`.
-2. Implement parser for global flags and subcommand options.
-3. Add strict validation and actionable error messages.
-4. Add `--dry-run` output mode with generation preview.
-5. Add `--overwrite` safety checks.
-6. Add exit codes and structured console logging.
-7. Add command help and examples.
+Legend:
+`[x]` Done
+`[-]` In Progress
+`[ ]` Pending
+
+Tasks:
+1. `[x]` Implement command surface: `new`, `doctor`, `upgrade`.
+2. `[x]` Implement parser for global flags and subcommand options.
+3. `[x]` Add strict validation and actionable error messages.
+4. `[x]` Add `--dry-run` output mode with generation preview.
+5. `[x]` Add `--overwrite` safety checks.
+6. `[-]` Add exit codes and structured console logging.
+7. `[x]` Add command help and examples.
 
 Acceptance:
-1. `scala-forge --help` and subcommand helps are complete.
-2. Invalid inputs return non-zero with clear diagnostics.
-3. Dry-run prints intended file changes without writing.
+1. `[x]` `scala-forge --help` and subcommand helps are complete.
+2. `[x]` Invalid inputs return non-zero with clear diagnostics.
+3. `[x]` Dry-run prints intended file changes without writing.
 
 ### Epic 2 - Template Engine (Status: Not Started)
 1. Define template metadata model.
