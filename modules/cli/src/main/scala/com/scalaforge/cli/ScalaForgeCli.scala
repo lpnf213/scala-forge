@@ -28,11 +28,7 @@ object ScalaForgeCli {
   private def run(command: Command): Int =
     command match {
       case NewCommand(template, projectName, options, flags) =>
-        println(s"[new] template=$template project=$projectName")
-        if (options.nonEmpty) println(s"[new] options=${formatOptions(options)}")
-        if (flags.nonEmpty) println(s"[new] flags=${flags.toList.sorted.mkString(",")}")
-        println("Scaffold generation is not implemented yet.")
-        0
+        runNew(template, projectName, options, flags)
 
       case DoctorCommand(projectPath) =>
         println(s"[doctor] target=$projectPath")
@@ -50,6 +46,44 @@ object ScalaForgeCli {
         printUsage()
         0
     }
+
+  private def runNew(
+      template: String,
+      projectName: String,
+      options: Map[String, String],
+      flags: Set[String]
+  ): Int = {
+    val dryRun = flagEnabled("dry-run", options, flags)
+    val overwrite = flagEnabled("overwrite", options, flags)
+    val scalaVersion = options.getOrElse("scala", "2.13.14")
+
+    template.toLowerCase match {
+      case "cli-app" =>
+        CliAppScaffolder.scaffold(
+          projectName = projectName,
+          scalaVersion = scalaVersion,
+          overwrite = overwrite,
+          dryRun = dryRun
+        ) match {
+          case Right(result) =>
+            val mode = if (result.dryRun) "DRY-RUN" else "APPLY"
+            println(s"[$mode] Generated template 'cli-app' for project '$projectName'")
+            println(s"Project root: ${result.projectRoot}")
+            println("Files:")
+            result.plannedFiles.foreach(path => println(s"  - $path"))
+            0
+          case Left(error) =>
+            Console.err.println(s"Error: $error")
+            1
+        }
+
+      case other =>
+        Console.err.println(
+          s"Error: template '$other' is not implemented yet. Currently supported: cli-app"
+        )
+        1
+    }
+  }
 
   private def parseArgs(args: List[String]): Either[String, Command] =
     args match {
@@ -115,6 +149,11 @@ object ScalaForgeCli {
   private def formatOptions(options: Map[String, String]): String =
     options.toList.sortBy(_._1).map { case (k, v) => s"$k=$v" }.mkString(",")
 
+  private def flagEnabled(name: String, options: Map[String, String], flags: Set[String]): Boolean =
+    flags.contains(name) || options
+      .get(name)
+      .exists(v => Set("1", "true", "yes", "on").contains(v.trim.toLowerCase))
+
   private def printUsage(): Unit = {
     val usage =
       """Scala Forge
@@ -125,7 +164,7 @@ object ScalaForgeCli {
         |  scala-forge upgrade <project-path> [options]
         |
         |Examples:
-        |  scala-forge new spark-app spark-sentinel --scala 2.12.18 --spark 3.5.1 --docker --k8s
+        |  scala-forge new cli-app spark-sentinel --scala 2.13.14 --dry-run
         |  scala-forge doctor ./customer360
         |  scala-forge upgrade ./customer360 --spark 3.5.3 --dry-run
         |

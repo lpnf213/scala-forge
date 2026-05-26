@@ -12,7 +12,7 @@ docker compose run --rm scala-forge --help
 
 ## 2) Run `new`
 ```powershell
-docker compose run --rm scala-forge new spark-app spark-sentinel --scala 2.12.18 --spark 3.5.1 --dry-run
+docker compose run --rm scala-forge new cli-app spark-sentinel --scala 2.13.14 --dry-run
 ```
 
 ## 3) Run `doctor`
@@ -24,6 +24,29 @@ docker compose run --rm scala-forge doctor ./spark-sentinel
 ```powershell
 docker compose run --rm scala-forge upgrade ./spark-sentinel --spark 3.5.3 --dry-run
 ```
+
+## 5) Generate to a Custom Host Folder
+Use an extra volume mount plus `-w` to control where the project is created.
+
+```powershell
+docker compose run --rm `
+  -v C:\tmp\forge-out:/out `
+  -w /out `
+  scala-forge new cli-app my-new-project --dry-run
+```
+
+Real generation (writes files on host):
+
+```powershell
+docker compose run --rm `
+  -v C:\tmp\forge-out:/out `
+  -w /out `
+  scala-forge new cli-app my-new-project
+```
+
+Output path mapping:
+1. Host: `C:\tmp\forge-out\my-new-project`
+2. Container: `/out/my-new-project`
 
 ## Notes
 1. The JAR is created during `docker compose build` via `sbt assembly`.

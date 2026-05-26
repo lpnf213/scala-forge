@@ -35,10 +35,11 @@ This document translates the Scala Forge product specification into an executabl
    - `docs/class-diagram.md`
    - `docs/sbt-guide.md`
    - `docs/run-with-docker.md`
+6. `new cli-app` now generates a real scaffold with `--dry-run` and `--overwrite` support.
 
 ### In Progress
 1. Harden CLI validation (`--overwrite`, stricter constraints, richer diagnostics).
-2. Template generation engine and deterministic render flow.
+2. Expand template generation beyond `cli-app` and add deterministic render tests.
 3. Docker run verification in this environment.
 
 ### Blocked / External Dependencies
