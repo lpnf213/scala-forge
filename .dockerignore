@@ -1,0 +1,5 @@
+.git
+.idea
+target
+project/target
+modules/**/target
