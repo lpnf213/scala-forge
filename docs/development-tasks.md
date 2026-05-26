@@ -163,7 +163,7 @@ Acceptance:
 
 ### Epic 13 - Project Doctor (Status: Not Started)
 1. Build compatibility matrix for Scala/Spark/Iceberg.
-2. Implement project scanner for build/dependency config.
+2. `MVP done`: Implement project scanner for base build/dependency config and required paths.
 3. Add Docker/K8s manifest checks.
 4. Implement weighted health score model.
 5. Add actionable remediation suggestions.

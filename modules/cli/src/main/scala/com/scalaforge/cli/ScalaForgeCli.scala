@@ -7,6 +7,7 @@ object ScalaForgeCli {
     val Success = 0
     val Usage = 2
     val Validation = 3
+    val DoctorFailure = 4
   }
 
   private val SupportedTemplates = Set("cli-app")
@@ -109,9 +110,12 @@ object ScalaForgeCli {
       printValidationErrors(List(s"Project path does not exist: ${path.toAbsolutePath.normalize()}"))
       ExitCode.Validation
     } else {
-      println(s"[doctor] target=$projectPath")
-      println("Project validation is not implemented yet.")
-      ExitCode.Success
+      val report = DoctorValidator.validate(path)
+      println(s"[doctor] target=${report.projectPath}")
+      report.findings.foreach { finding =>
+        println(s"[${finding.severity.label}] ${finding.message}")
+      }
+      if (report.hasFailures) ExitCode.DoctorFailure else ExitCode.Success
     }
   }
 
